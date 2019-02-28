@@ -5,8 +5,9 @@
 
 
 char * input (void) {
-    char * line = (char *)malloc( 100 );
-    char a,c='\0';
+    char * line = (char *) malloc( 100 );
+    memset(line,0,strlen(line));
+    char a ='\0', c='\0';
 
     while (1) {
         scanf("%c", &a );
@@ -17,7 +18,7 @@ char * input (void) {
             break;
         }
     }
-    strncat(line, &c,1);
+    strncat(line, &c, 1);
     return line;
 }
 
@@ -51,10 +52,31 @@ char * returnFile ( char * fileName ) {
     return filePath;
 }
 
+void execute (char * addr) {
+
+    int pid;
+    char *args[2];
+
+    strcpy(args[0],addr);
+    args[1]=NULL;
+
+    if ((pid = fork())==0) {
+        execv(args[0],args);
+    }
+    else if(pid>0){
+        wait();
+    }
+    else{
+        printf("Cannot execute\n");
+    }
+
+}
+
 int main (int argc, char const *argv[]) {
-	while(1) {
+    char * cmd;
+    while(1) {
 		printf("$ ");
-		char * cmd = input ();
+		cmd = input ();
         if (strcmp(cmd,"exit")==0) {
             exit(0);
         }
@@ -62,6 +84,7 @@ int main (int argc, char const *argv[]) {
             char * filePath;
             filePath = returnFile(cmd);
             printf("%s\n", filePath );
+            execute(filePath);
         }
 	}
 }
