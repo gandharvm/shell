@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <dirent.h>
 
-
 char * input (void) {
     char * line = (char *) malloc( 100 );
     memset(line,0,strlen(line));
@@ -21,6 +20,7 @@ char * input (void) {
     strncat(line, &c, 1);
     return line;
 }
+
 
 char * returnFile ( char * fileName ) {
     DIR * x;
@@ -52,7 +52,7 @@ char * returnFile ( char * fileName ) {
     return filePath;
 }
 
-void execute (char * addr) {
+void execute (char * addr, char * attributes) {
 
     int pid;
     char *args[2];
@@ -72,7 +72,31 @@ void execute (char * addr) {
 
 }
 
-int main (int argc, char const *argv[]) {
+void splitPipe( char * command, char * array[]) {
+
+    array[0] = strsep(&command, "|");
+    array[1] = strsep(&command, "|");
+
+    //printf("%s %s\n", array[0], array[1] );
+}
+
+char * removespaces(char * string) {
+    char * s= string;
+    int count = 0;
+    while (*string != 0 ) {
+        *s = *string++;
+        if ( *s != ' ') {
+            s++;
+            count+=1;
+        }
+    }
+    *s = 0;
+    s-=count;
+    // printf("%s\n",s );
+    return s;
+}
+
+int main (int argc, char const *argv[], char **envp) {
     char * cmd;
     while(1) {
 		printf("$ ");
@@ -81,10 +105,19 @@ int main (int argc, char const *argv[]) {
             exit(0);
         }
         else {
-            char * filePath;
-            filePath = returnFile(cmd);
-            printf("%s\n", filePath );
-            execute(filePath);
+            char * array[2];
+            splitPipe (cmd,array);
+            //printf("%s\n", array[0]);
+            char * r = removespaces(array[0]);
+            char * filePath = returnFile(r);
+            //printf("%s\n", filePath);
+            if (strcmp(filePath,"Not Found")!=0) {
+                execute(filePath);
+            }
+            else{
+                printf("%s\n", filePath );
+            }
+
         }
 	}
 }
