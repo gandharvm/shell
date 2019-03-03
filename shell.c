@@ -97,10 +97,6 @@ char * returnFile ( char * fileName ) {
             }
         }
     }
-
-
-
-
     // printf("%s\n",filePath );
     return filePath;
 }
@@ -117,21 +113,16 @@ char * returnFile ( char * fileName ) {
 
 //void execute (char * addr, char * attributes) {
 
-void execute (char * addr, char * attri) {
+void execute (char * addr,int argscount, char * arguments[]) {
 
     int pid, status;
-    char *args[4];
+    char *args[argscount+1];
 
     int i=0;
-    args[i]=addr;
-    if (attri) {
-        // printf("%s\n"," NOt Null" );
-        args[++i]=attri;
+    args[i] = addr;
+    for (int j = 1; j < argscount; j++) {
+        args[++i] = arguments [j];
     }
-    // if (arguments) {
-    //     // printf("%s\n"," NOt Null" );
-    //     args[++i]=arguments;
-    // }
     args[++i]=NULL;
 
 
@@ -233,6 +224,40 @@ char * extractCommand( char string[]) {
     return s;
 }
 
+int extractArguments( char string[], char *arr[]) {
+    int flag=0,j=0;
+    arr[0]=malloc(10);
+    char * s = string;
+    int count = 0;
+
+    while (*string != 0 ) {
+        *s = *string++;
+        if (*s != ' '){
+            s++;
+            count++;
+            flag = 1;
+        }
+        else if(*s == ' ' && flag == 1){
+            *s = '\0';
+            s-=count;
+            strcpy(arr[j++], s);
+            arr[j]=malloc(10);
+            flag = 0;
+            count=0;
+        }
+    }
+    if (flag == 1) {
+        *s = '\0';
+        s-=count;
+        strcpy(arr[j++], s);
+    }
+
+    // for (int i = 0; i < j; i++) {
+    //     printf("%s\n", arr[i] );
+    // }
+    return j;
+}
+
 int main (int argc, char const *argv[]) {
     char * cmd;
     while(1) {
@@ -246,28 +271,35 @@ int main (int argc, char const *argv[]) {
             char param[MAX_INPUT_SIZE], params[MAX_INPUT_SIZE];
             strcpy(param,cmd);
             char * command = extractCommand(param);
-            printf("%s\n", command );
+            // printf("%s\n", command );
             strcpy(params,cmd);
-            char * attributes = extractAttributes(params);
-            printf("%s\n", attributes );
+            char * arr[20];
+            int num = extractArguments(params,arr);
+            // printf("%d\n", num );
+            // char * attributes = extractAttributes(params);
+            // printf("%s\n", attributes );
             //char * array[2];
             //splitPipe (cmd,array);
             //printf("%s\n", array[0]);
             //char * r = removespaces(array[0]);
             char * filePath = returnFile(command);
-            printf("%s\n", filePath);
+            // printf("%s\n", filePath);
             if (strcmp(filePath,"Not Found")!=0) {
-                if (strcmp(attributes,"No attributes")==0) {
-                    execute(filePath, NULL);
+                if (num == 1) {
+                    execute(filePath, num, NULL);
                 }
                 else{
-                    execute(filePath, attributes);
+                    execute(filePath, num, arr);
                 }
             }
             else{
                 printf("%s\n", filePath );
             }
-
+            for (int i = 0; i < num; i++) {
+                free(arr[i]);
+            }
+            free(filePath);
         }
+        free(cmd);
 	}
 }
