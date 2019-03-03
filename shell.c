@@ -2,10 +2,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include <dirent.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#define MAX_INPUT_SIZE 150
 
 // Take input character by character
 char * input (void) {
-    char * line = (char *) malloc( 100 );
+    char * line = (char *) malloc( MAX_INPUT_SIZE );
     memset(line,0,strlen(line));
     char a ='\0', c='\0';
 
@@ -29,8 +34,8 @@ char * input (void) {
 char * returnFile ( char * fileName ) {
     DIR * x;
     struct dirent * files;
-    char * prefixDir = "/bin/";
-    char * filePath;
+    char * prefixDir = "./";
+    char * filePath = malloc (100) ;
     int flag = 0;
 
     x = opendir(prefixDir);
@@ -46,12 +51,55 @@ char * returnFile ( char * fileName ) {
     closedir(x);
 
     if (flag==1) {
-        strcpy (filePath,prefixDir);
+        // printf("%s\n", "Found in cur");
+        strcpy (filePath, prefixDir);
         strcat (filePath, fileName);
     }
-    else{
-        filePath = "Not Found";
+    else {
+        prefixDir = "/bin/";
+        x = opendir(prefixDir);
+        // printf("Opened dir\n" );
+        while ((files = readdir(x))!= NULL) {
+            if (strcmp(fileName, files->d_name)==0) {
+                // printf("Found file\n" );
+                flag=1;
+                break;
+            }
+        }
+
+        closedir(x);
+
+        if (flag==1) {
+            strcpy (filePath, prefixDir);
+            strcat (filePath, fileName);
+        }
+        else{
+
+            prefixDir = "/usr/bin/";
+            x = opendir(prefixDir);
+            // printf("Opened dir\n" );
+            while ((files = readdir(x))!= NULL) {
+                if (strcmp(fileName, files->d_name)==0) {
+                    // printf("Found file\n" );
+                    flag=1;
+                    break;
+                }
+            }
+
+            closedir(x);
+
+            if (flag==1) {
+                strcpy (filePath, prefixDir);
+                strcat (filePath, fileName);
+            }
+            else {
+                filePath = "Not Found";
+            }
+        }
     }
+
+
+
 
     // printf("%s\n",filePath );
     return filePath;
@@ -71,23 +119,27 @@ char * returnFile ( char * fileName ) {
 
 void execute (char * addr, char * attri) {
 
-    int pid;
-    char *args[3];
+    int pid, status;
+    char *args[4];
 
     int i=0;
-    strcpy(args[0],addr);
+    args[i]=addr;
     if (attri) {
-        printf("%s\n"," NOt Null" );
+        // printf("%s\n"," NOt Null" );
         args[++i]=attri;
     }
-    args[2]=NULL;
+    // if (arguments) {
+    //     // printf("%s\n"," NOt Null" );
+    //     args[++i]=arguments;
+    // }
+    args[++i]=NULL;
 
 
     if ((pid = fork())==0) {
         execv(args[0],args);
     }
     else if(pid>0){
-        wait();
+        wait(&status);
     }
     else{
         printf("Cannot execute\n");
@@ -152,7 +204,32 @@ char * extractAttributes( char string[]) {
     }
     *s = '\0';
     s-=count;
-    printf("%s\n", s);
+
+    if (count == 0) {
+        s = "No attributes";
+    }
+    // printf("%s\n", s);
+    return s;
+}
+
+char * extractCommand( char string[]) {
+    int flag=0;
+    char * s = string;
+    int count = 0;
+    while (*string != 0 ) {
+        *s = *string++;
+        if (*s != ' '){
+            s++;
+            count++;
+            flag = 1;
+        }
+        else if(*s == ' ' && flag == 1){
+            break;
+        }
+    }
+    *s = '\0';
+    s-=count;
+    // printf("%s\n", s);
     return s;
 }
 
@@ -161,22 +238,31 @@ int main (int argc, char const *argv[]) {
     while(1) {
 		printf("$ ");
 		cmd = input ();
-        printf("%s\n", cmd);
+        // printf("%s\n", cmd);
         if (strcmp(cmd,"exit")==0) {
             exit(0);
         }
         else {
-            char * array[2];
-            splitPipe (cmd,array);
+            char param[MAX_INPUT_SIZE], params[MAX_INPUT_SIZE];
+            strcpy(param,cmd);
+            char * command = extractCommand(param);
+            printf("%s\n", command );
+            strcpy(params,cmd);
+            char * attributes = extractAttributes(params);
+            printf("%s\n", attributes );
+            //char * array[2];
+            //splitPipe (cmd,array);
             //printf("%s\n", array[0]);
-             char * attributes = extractAttributes(array[0]);
-            printf("%s\n",attributes );
             //char * r = removespaces(array[0]);
-            char * filePath = returnFile(array[0]);
+            char * filePath = returnFile(command);
             printf("%s\n", filePath);
-
             if (strcmp(filePath,"Not Found")!=0) {
-                execute(filePath,attributes);
+                if (strcmp(attributes,"No attributes")==0) {
+                    execute(filePath, NULL);
+                }
+                else{
+                    execute(filePath, attributes);
+                }
             }
             else{
                 printf("%s\n", filePath );
