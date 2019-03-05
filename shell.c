@@ -7,12 +7,27 @@
 #include <unistd.h>
 
 #define MAX_INPUT_SIZE 150
+#define N 100
+
+// To print any Array of strings
+void Print(char A[][N], int n){
+
+	int i=0;
+	for (int i = 0; i < n; i+=1) {
+		puts(A[i]);
+	}
+
+}
 
 // Take input character by character
+
 char * input (void) {
+
     char * line = (char *) malloc( MAX_INPUT_SIZE );
     memset(line,0,strlen(line));
-    char a ='\0', c='\0';
+
+    char a ='\0',  c = '\0';
+
 
     while (1) {
         scanf("%c", &a );
@@ -23,8 +38,11 @@ char * input (void) {
             break;
         }
     }
+
+
     strncat(line, &c, 1);
     return line;
+
 }
 
 
@@ -102,50 +120,27 @@ char * returnFile ( char * fileName ) {
 }
 
 
-
-/*
-	Passing file address and dong exec system call
-
-	Also pass attributes, and arguments
-
-*/
-
-
-//void execute (char * addr, char * attributes) {
-
-void execute (char * addr,int argscount, char * arguments[]) {
-
-    int pid, status;
-    char *args[argscount+1];
-
-    int i=0;
-    args[i] = addr;
-    for (int j = 1; j < argscount; j++) {
-        args[++i] = arguments [j];
-    }
-    args[++i]=NULL;
-
-
-    if ((pid = fork())==0) {
-        execv(args[0],args);
-    }
-    else if(pid>0){
-        wait(&status);
-    }
-    else{
-        printf("Cannot execute\n");
-    }
-
-}
-
 // To split the command by pipe and store it into an array
+// and return the length of the new spitted array
+int splitPipe (char * command) {
 
-void splitPipe( char * command, char * array[]) {
+	//char *var2 = strdup(command);
 
-    array[0] = strsep(&command, "|");
-    array[1] = strsep(&command, "|");
+	char Commands[N][N];
+	int i = 0; char *p;
 
-    //printf("%s %s\n", array[0], array[1] );
+	while ((p = strsep(&command,"|")) != NULL) {   // p contains the token
+        strcpy(Commands[i], p);
+        Commands[i][0] = '\0';
+        i += 1;
+    }
+
+    // Length of the newly formed array
+    int n = i+1;
+
+    Print(Commands, n); // Not splitting the first element properly
+
+    return n;
 }
 
 // Just to remove spaces from a char array
@@ -203,6 +198,13 @@ char * extractAttributes( char string[]) {
     return s;
 }
 
+
+/*
+
+extractCommand takes input the string from which we need to get the command
+and returns a string containing the command
+
+*/
 char * extractCommand( char string[]) {
     int flag=0;
     char * s = string;
@@ -223,6 +225,14 @@ char * extractCommand( char string[]) {
     // printf("%s\n", s);
     return s;
 }
+
+/*
+
+extractArguments takes input the string from which we need to get the attributes and the 
+arguments and an array in which we will get all the arguments and attributes (this array will be one-indexed).
+It returns the total number of attributes and arguments (basically the length of the array)
+
+*/
 
 int extractArguments( char string[], char *arr[]) {
     int flag=0,j=0;
@@ -258,48 +268,142 @@ int extractArguments( char string[], char *arr[]) {
     return j;
 }
 
+
+
+/*
+	Passing file address and doing exec system call
+	Also pass attributes, and arguments
+*/
+//void execute (char * addr, char * attributes) {
+void execute (char * addr,int argscount, char * arguments[]) {
+
+    int pid, status;
+    char *args[argscount+1];
+
+    int i=0;
+    args[i] = addr;
+    for (int j = 1; j < argscount; j++) {
+        args[++i] = arguments [j];
+    }
+    args[++i]=NULL;
+
+
+    if ((pid = fork())==0) {
+        execv(args[0],args);
+    }
+    else if(pid>0){
+        wait(&status);
+    }
+    else{
+        printf("Cannot execute\n");
+    }
+
+}
+
+// Dummy function for now to test how pipe works
+void executePipe (char input[][N], int n) {
+
+    int pid, status, int i;
+
+
+    for (int i = 0; i < n-1; i += 1) {
+    	
+    	char *current = input[i];
+	    char *next = input[i+1];
+
+	    char *cmd1 = extractCommand(current)
+	    char *args1[] = extractArguments(current);
+
+	    char *cmd2 = extractCommand(next)
+	    char *args2[] = extractArguments(next);
+
+	    int fd[2];
+
+	    pipe(fd);
+
+	    // Child Process
+	    if ((pid = fork())==0) {
+	    	close(1);
+	    	dup(fd[1]);
+	    	close(fd[0]);
+	    	close(fd[1]);
+	        execv(cmd1,args1);
+	    }
+	    // Parent Process
+	    else if(pid > 0){
+	    	close(0);
+	    	dup(fd[0]);
+	    	close (fd[0]);
+ 			close (fd[1]);
+	        wait(&status);
+	    }
+	    // Error, fork not successfull
+	    else{
+	        printf("Error, fork and exec not successfull\n");
+	        exit(-1);
+	    }
+    }
+
+    
+
+}
+
+
 int main (int argc, char const *argv[]) {
     char * cmd;
-    while(1) {
-		printf("$ ");
-		cmd = input ();
-        // printf("%s\n", cmd);
-        if (strcmp(cmd,"exit")==0) {
-            exit(0);
-        }
-        else {
-            char param[MAX_INPUT_SIZE], params[MAX_INPUT_SIZE];
-            strcpy(param,cmd);
-            char * command = extractCommand(param);
-            // printf("%s\n", command );
-            strcpy(params,cmd);
-            char * arr[20];
-            int num = extractArguments(params,arr);
-            // printf("%d\n", num );
-            // char * attributes = extractAttributes(params);
-            // printf("%s\n", attributes );
-            //char * array[2];
-            //splitPipe (cmd,array);
-            //printf("%s\n", array[0]);
-            //char * r = removespaces(array[0]);
-            char * filePath = returnFile(command);
-            // printf("%s\n", filePath);
-            if (strcmp(filePath,"Not Found")!=0) {
-                if (num == 1) {
-                    execute(filePath, num, NULL);
-                }
-                else{
-                    execute(filePath, num, arr);
-                }
-            }
-            else{
-                printf("%s\n", filePath );
-            }
-            for (int i = 0; i < num; i++) {
-                free(arr[i]);
-            }
-            free(filePath);
-        }
-        free(cmd);
+ //    while(1) {
+	// 	printf("$ ");
+	// 	cmd = input ();
+ //        // printf("%s\n", cmd);
+ //        if (strcmp(cmd,"exit")==0) {
+ //            exit(0);
+ //        }
+ //        else {
+ //            char param[MAX_INPUT_SIZE], params[MAX_INPUT_SIZE];
+ //            strcpy(param,cmd);
+ //            char * command = extractCommand(param);
+ //            // printf("%s\n", command );
+ //            strcpy(params,cmd);
+ //            char * arr[20];
+ //            int num = extractArguments(params,arr);
+ //            // printf("%d\n", num );
+ //            // char * attributes = extractAttributes(params);
+ //            // printf("%s\n", attributes );
+ //            //char * array[2];
+ //            //splitPipe (cmd,array);
+ //            //printf("%s\n", array[0]);
+ //            //char * r = removespaces(array[0]);
+ //            char * filePath = returnFile(command);
+ //            // printf("%s\n", filePath);
+ //            if (strcmp(filePath,"Not Found")!=0) {
+ //                if (num == 1) {
+ //                    execute(filePath, num, NULL);
+ //                }
+ //                else{
+ //                    execute(filePath, num, arr);
+ //                }
+ //            }
+ //            else{
+ //                printf("%s\n", filePath );
+ //            }
+ //            for (int i = 0; i < num; i++) {
+ //                free(arr[i]);
+ //            }
+ //            free(filePath);
+ //        }
+ //        free(cmd);
+	// }
+
+	while(1){
+
+	    cmd = input ();
+
+	    int inputSize = sizeof(cmd)/sizeof(char);
+
+	    int splitLen = splitPipe(cmd);
+
+	    executePipe(cmd, splitLen);
 	}
+
+
 }
