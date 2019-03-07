@@ -1,0 +1,7 @@
+a.out
+check.c
+README.md
+shell
+shell.c
+tmp1.txt
+tmp2.txt

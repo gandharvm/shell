@@ -1,0 +1,10 @@
+total 64
+-rwxr-xr-x 1 anshuman1117 anshuman1117 17920 Mar  7 00:39 a.out
+-rw-rw-r-- 1 anshuman1117 anshuman1117   994 Mar  6 19:21 check.c
+-rw-r--r-- 1 anshuman1117 anshuman1117     0 Mar  7 18:17 file
+-rw-r--r-- 1 anshuman1117 anshuman1117     4 Mar  7 14:12 output.txt
+-rw-r--r-- 1 anshuman1117 anshuman1117     7 Mar  2 13:32 README.md
+-rwxr-xr-x 1 anshuman1117 anshuman1117 13360 Mar  2 13:34 shell
+-rw-r--r-- 1 anshuman1117 anshuman1117 12202 Mar  7 00:39 shell.c
+-rw-r--r-- 1 anshuman1117 anshuman1117     0 Mar  7 13:58 tmp1.txt
+-rw-r--r-- 1 anshuman1117 anshuman1117    56 Mar  7 13:58 tmp2.txt

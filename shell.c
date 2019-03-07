@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -5,29 +7,34 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <stdbool.h>
 
 #define MAX_INPUT_SIZE 150
-#define N 100
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
 
-// To print any Array of strings
-void Print(char A[][N], int n){
 
-	int i=0;
-	for (int i = 0; i < n; i+=1) {
-		puts(A[i]);
-	}
+struct Process {
+	char *name;
+	char *argu[20];
+	int len;
+};
 
-}
+struct Redirect
+{
+    char left[MAX_INPUT_SIZE][20];
+    char right[MAX_INPUT_SIZE][20];
+    char *op[20];
+    int len;
+};
 
 // Take input character by character
-
 char * input (void) {
-
     char * line = (char *) malloc( MAX_INPUT_SIZE );
     memset(line,0,strlen(line));
-
-    char a ='\0',  c = '\0';
-
+    char a ='\0', c='\0';
 
     while (1) {
         scanf("%c", &a );
@@ -38,174 +45,34 @@ char * input (void) {
             break;
         }
     }
-
-
     strncat(line, &c, 1);
     return line;
-
 }
 
+int splitPipe2 (char * command, char Commands[][MAX_INPUT_SIZE]) {
 
-// Return filepath from filename
-// Search all of path env also
-// 1. Bin 2. User Bin 3. PWD - Now only in BIN
-char * returnFile ( char * fileName ) {
-    DIR * x;
-    struct dirent * files;
-    char * prefixDir = "./";
-    char * filePath = malloc (100) ;
-    int flag = 0;
+    //char *var2 = strdup(command);
+    int i = 0; char *p;
 
-    x = opendir(prefixDir);
-    // printf("Opened dir\n" );
-    while ((files = readdir(x))!= NULL) {
-        if (strcmp(fileName, files->d_name)==0) {
-            // printf("Found file\n" );
-            flag=1;
-            break;
-        }
-    }
-
-    closedir(x);
-
-    if (flag==1) {
-        // printf("%s\n", "Found in cur");
-        strcpy (filePath, prefixDir);
-        strcat (filePath, fileName);
-    }
-    else {
-        prefixDir = "/bin/";
-        x = opendir(prefixDir);
-        // printf("Opened dir\n" );
-        while ((files = readdir(x))!= NULL) {
-            if (strcmp(fileName, files->d_name)==0) {
-                // printf("Found file\n" );
-                flag=1;
-                break;
-            }
-        }
-
-        closedir(x);
-
-        if (flag==1) {
-            strcpy (filePath, prefixDir);
-            strcat (filePath, fileName);
-        }
-        else{
-
-            prefixDir = "/usr/bin/";
-            x = opendir(prefixDir);
-            // printf("Opened dir\n" );
-            while ((files = readdir(x))!= NULL) {
-                if (strcmp(fileName, files->d_name)==0) {
-                    // printf("Found file\n" );
-                    flag=1;
-                    break;
-                }
-            }
-
-            closedir(x);
-
-            if (flag==1) {
-                strcpy (filePath, prefixDir);
-                strcat (filePath, fileName);
-            }
-            else {
-                filePath = "Not Found";
-            }
-        }
-    }
-    // printf("%s\n",filePath );
-    return filePath;
-}
-
-
-// To split the command by pipe and store it into an array
-// and return the length of the new spitted array
-int splitPipe (char * command) {
-
-	//char *var2 = strdup(command);
-
-	char Commands[N][N];
-	int i = 0; char *p;
-
-	while ((p = strsep(&command,"|")) != NULL) {   // p contains the token
+    while ((p = strsep(&command,"|")) != NULL) {   // p contains the token
         strcpy(Commands[i], p);
-        Commands[i][0] = '\0';
         i += 1;
     }
 
     // Length of the newly formed array
     int n = i+1;
 
-    Print(Commands, n); // Not splitting the first element properly
+    // Not splitting the first element properly
+    // for (int i = 0; i < n; ++i)
+    // {
+    //  printf("%s \n", Commands[i]);
+    // }
 
     return n;
 }
 
-// Just to remove spaces from a char array
 
-char * removespaces(char * string) {
-    char * s= string;
-    int count = 0;
-    while (*string != 0 ) {
-        *s = *string++;
-        if ( *s != ' ' && *s != '\t') {
-            s++;
-            count+=1;
-        }
-    }
-    *s = 0;
-    s-=count;
-    // printf("%s\n",s );
-    return s;
-}
-
-char * extractAttributes( char string[]) {
-    int flag=0,flaggy=0;
-    string[strlen(string)]=' ';
-    string[strlen(string)]='\0';
-    // printf("%s%s\n",string,"Added space" );
-
-    char * s= string;
-    int count = 0;
-    while (*string != 0 ) {
-        *s = *string++;
-        if ( *s == '-' && flag == 0 && flaggy == 0) {
-            s++;
-            count++;
-            flag = 1;
-            flaggy = 1;
-        }
-        else if (*s == '-' && flag == 0 && flaggy == 1){
-            flag = 1;
-        }
-        else if(*s != ' ' && flag == 1){
-            s++;
-            count++;
-        }
-        else {
-            flag = 0;
-        }
-    }
-    *s = '\0';
-    s-=count;
-
-    if (count == 0) {
-        s = "No attributes";
-    }
-    // printf("%s\n", s);
-    return s;
-}
-
-
-/*
-
-extractCommand takes input the string from which we need to get the command
-and returns a string containing the command
-
-*/
-char * extractCommand( char string[]) {
+char * extractCommand( char string[] ) {
     int flag=0;
     char * s = string;
     int count = 0;
@@ -226,22 +93,266 @@ char * extractCommand( char string[]) {
     return s;
 }
 
-/*
+// char * inputRedirection(char * command){
+// 	char * newCommand = command;
+// 	int len = 0, count = 0;
+// 	char cmd [MAX_INPUT_SIZE];
+// 	while (*command == ' ')
+// 	{
+// 		command++;
+// 	}
+// 	strcpy(cmd, command);
+// 	for (int i = 0; i < strlen(cmd); i++) {
+// 		if (cmd[i] == '<') {
+// 			if (i > 1)
+//             {
+//                 if (cmd[i-1] == '0' && cmd[i-2] == ' ')
+//                 {
+//
+//                 }
+//                 else
+//                 {
+//
+//                 }
+//                 j++;
+//             }
+// 			else{
+// 				printf("%s\n","Invalid" );
+// 			}
+// 		}
+// 	}
+//
+// }
 
-extractArguments takes input the string from which we need to get the attributes and the 
-arguments and an array in which we will get all the arguments and attributes (this array will be one-indexed).
-It returns the total number of attributes and arguments (basically the length of the array)
+char * redirection( char * command , struct Redirect *R, char *args[]) {
+    char cmd [MAX_INPUT_SIZE];
+    int j = 0;
+    //Initialising the arrays of the Process
+    // for (int i = 0; i < 20; ++i) {
+    //     R.left[i] = "00";
+    //     R.right[i] = "00";
+    //     R.op[i] = "00";
+    // }
+    while (*command == ' ')
+    {
+        command++;
+    }
+    strcpy(cmd, command);
+    for (int i = 0; i < strlen(cmd); ++i)
+    {
+        if (cmd[i] == '<')
+        {
+			R->op[j] = "<";
+			// printf("%s\n", R->op[j]);
+            if (i > 1)
+            {
+                if (cmd[i-1] == '0' && cmd[i-2] == ' ')
+                {
+                    R->left[j][0] = '0';
+					R->left[j][1] = '\0';
+					cmd[i-1] = ' ';
+                }
+                else
+                {
+					R->left[j][0] = 'C';
+					R->left[j][1] = '\0';
+                }
+            }
 
-*/
+			int flag = 0, l=0;
+			for (int k = i+1; k < strlen(cmd) ; k++) {
+				// printf("%s\n", "inside");
+				if (cmd[k] != ' ') {
+					flag=1;
+					// printf("%s\n","flag" );
+					R->right[j][l] = cmd[k];
+					cmd[k] =' ';
+					l++;
+				}
+				else if (flag == 1 && cmd[k] == ' ') {
+					R->right[j][l] = '\0';
+					break;
+				}
+			}
+			if (flag == 1) {
+				R->right[j][l] = '\0';
+			}
+			// printf("%ld\n", strlen (cmd));
+			// strncpy(R->right[j], cmd + i, index);
+			// printf("%s\n", R->right[j]);
+			j++;
+			cmd[i] = ' ';
+        }
+
+        else if (cmd[i] == '>' && i<strlen(cmd)-1 && cmd[i+1] == '>')
+        {
+			R->op[j] = ">>";
+			// printf("%s\n", R->op[j]);
+            if (i > 1)
+            {
+				if (cmd[i-1] == '1' && cmd[i-2] == ' ')
+                {
+                    R->left[j][0] = '1';
+					R->left[j][1] = '\0';
+					cmd[i-1] = ' ';
+                }
+                else if (cmd[i-1] == '2' && cmd[i-2] == ' ')
+                {
+                    R->left[j][0] = '2';
+					R->left[j][1] = '\0';
+					cmd[i-1] = ' ';
+                }
+				else{
+					R->left[j][0] = 'C';
+					R->left[j][1] = '\0';
+				}
+
+            }
+
+            if (i < strlen(cmd)-2)
+            {
+                if (cmd[i+2] == '&')
+                {
+                    if (cmd[i+3] == '1')
+                    {
+                        R->right[j][0] = '1';
+						R->right[j][1] = '\0';
+						cmd[i+3] =' ';
+                    }
+                    else if (cmd[i+3] == '2')
+                    {
+                        R->right[j][0] = '2';
+						R->right[j][1] = '\0';
+						cmd[i+3] =' ';
+                    }
+					cmd[i+2] = ' ';
+                }
+                else
+                {
+					int flag = 0, l=0;
+					for (int k = i+2; k < strlen(cmd) ; k++) {
+						// printf("%s\n", "inside");
+						if (cmd[k] != ' ') {
+							flag=1;
+							// printf("%s\n","flag" );
+							R->right[j][l] = cmd[k];
+							cmd[k] = ' ';
+							l++;
+						}
+						else if (flag == 1 && cmd[k] == ' ') {
+							R->right[j][l] = '\0';
+							break;
+						}
+
+					}
+					if (flag == 1) {
+						R->right[j][l] = '\0';
+					}
+					// printf("%ld\n", strlen (cmd));
+					// strncpy(R->right[j], cmd + i, index);
+					// printf("%s\n", R->right[j]);
+                }
+
+
+            }
+			j++;
+			cmd[i] = ' ';
+			cmd[i+1] = ' ';
+			i++;
+
+        }
+
+        else if (cmd[i] == '>')
+        {
+			R->op[j] = ">";
+			// printf("%s\n", R->op[j]);
+            if (i > 1)
+            {
+                if (cmd[i-1] == '1' && cmd[i-2] == ' ')
+                {
+                    R->left[j][0] = '1';
+					R->left[j][1] = '\0';
+					cmd[i-1] = ' ';
+                }
+                else if (cmd[i-1] == '2' && cmd[i-2] == ' ')
+                {
+                    R->left[j][0] = '2';
+					R->left[j][1] = '\0';
+					cmd[i-1] = ' ';
+                }
+                else
+                {
+					R->left[j][0] = 'C';
+					R->left[j][1] = '\0';
+                }
+            }
+
+            if (i < strlen(cmd)-3)
+            {
+                if (cmd[i+1] == '&')
+                {
+                    if (cmd[i+2] == '1')
+                    {
+                        R->right[j][0] = '1';
+						R->right[j][1] = '\0';
+						cmd[i+1]=' ';
+                    }
+                    else if (cmd[i+2] == '2')
+                    {
+                        R->right[j][0] = '2';
+						R->right[j][1] = '\0';
+						cmd[i+1]=' ';
+                    }
+					cmd[i+2]=' ';
+                }
+                else
+                {
+					int flag = 0, l=0;
+					for (int k = i+1; k < strlen(cmd) ; k++) {
+						// printf("%s\n", "inside");
+						if (cmd[k] != ' ') {
+							flag=1;
+							// printf("%s\n","flag" );
+							R->right[j][l] = cmd[k];
+							cmd[k] = ' ';
+							l++;
+						}
+						else if (flag == 1 && cmd[k] == ' ') {
+							R->right[j][l] = '\0';
+							break;
+						}
+					}
+					if (flag == 1) {
+						R->right[j][l] = '\0';
+					}
+					// printf("%ld\n", strlen (cmd));
+					// strncpy(R->right[j], cmd + i, index);
+					// printf("%s\n", R->right[j]);
+                }
+
+            }
+			j++;
+			cmd[i] = ' ';
+        }
+
+    }
+	char * retc=malloc(MAX_INPUT_SIZE);
+	strcat(retc,cmd);
+	R->len = j;
+	// printf("R Len %d\n",R->len );
+	// printf("%s\n",retc );
+	return retc;
+}
 
 int extractArguments( char string[], char *arr[]) {
     int flag=0,j=0;
-    arr[0]=malloc(10);
+    arr[0]=malloc(20);
     char * s = string;
     int count = 0;
 
     while (*string != 0 ) {
         *s = *string++;
+
         if (*s != ' '){
             s++;
             count++;
@@ -251,7 +362,7 @@ int extractArguments( char string[], char *arr[]) {
             *s = '\0';
             s-=count;
             strcpy(arr[j++], s);
-            arr[j]=malloc(10);
+            arr[j]=malloc(20);
             flag = 0;
             count=0;
         }
@@ -262,148 +373,266 @@ int extractArguments( char string[], char *arr[]) {
         strcpy(arr[j++], s);
     }
 
+
+
+    arr[j] = NULL;
     // for (int i = 0; i < j; i++) {
     //     printf("%s\n", arr[i] );
     // }
     return j;
 }
 
+// Signal handler
+void Handler(int sig){
 
+    printf("\n");
 
-/*
-	Passing file address and doing exec system call
-	Also pass attributes, and arguments
-*/
-//void execute (char * addr, char * attributes) {
-void execute (char * addr,int argscount, char * arguments[]) {
+    char cwd[200];
+    getcwd(cwd, 200);
+    printf(ANSI_COLOR_GREEN "%s$ " ANSI_COLOR_RESET, cwd);
 
-    int pid, status;
-    char *args[argscount+1];
+    printf("\n");
 
-    int i=0;
-    args[i] = addr;
-    for (int j = 1; j < argscount; j++) {
-        args[++i] = arguments [j];
-    }
-    args[++i]=NULL;
-
-
-    if ((pid = fork())==0) {
-        execv(args[0],args);
-    }
-    else if(pid>0){
-        wait(&status);
-    }
-    else{
-        printf("Cannot execute\n");
-    }
+    return;
 
 }
 
-// Dummy function for now to test how pipe works
-void executePipe (char input[][N], int n) {
+void executePipes(int pipes , struct Process P[], struct Redirect R) {
+    int prev = 0, i = 0;
+    int infil = -1;
+	int outfil = -1;
+	int erfil = -1;
+	int isDupout = -1;
+	int isDuper =-1;
+    int fd[2];
+    int pid;
 
-    int pid, status, int i;
+	// printf("%d\n", R.len);
+	for (int i = 0; i < R.len; i++) {
+		if (R.left[i][0] == 'C' && strcmp(R.op[i], ">")==0) {
+			R.left[i][0] = '1';
+		}
+		else if(R.left[i][0] == 'C' && strcmp(R.op[i], "<")==0) {
+			R.left[i][0] = '0';
+		}
+		// printf("%s %s %s\n", R.left[i], R.op[i], R.right[i] );
+	}
+
+	for (int i = 0; i < R.len; i++){
+		if (R.left[i][0] == '1' &&  strcmp(R.op[i], ">")==0 && R.right[i][0]!='2') {
+			if (outfil != -1) {
+				close(outfil);
+			}
+			isDupout=-1;
+			char * retc=malloc(MAX_INPUT_SIZE);
+			strcat(retc,R.right[i]);
+			printf(" lnk%s\n",retc );
+			outfil = open (retc,O_WRONLY | O_CREAT);
+		}
+		else if (R.left[i][0] == '1' &&  strcmp(R.op[i], ">")==0){
+			if (outfil != -1) {
+				close(outfil);
+			}
+			printf("%s\n", "outpuy" );
+			isDupout = 1;
+			outfil = -1;
+		}
+		else if (R.left[i][0] == '2' &&  strcmp(R.op[i], ">")==0 && R.right[i][0]!='1' ) {
+			if (erfil != -1) {
+				close(erfil);
+			}
+			isDuper = -1;
+			char * retc=malloc(MAX_INPUT_SIZE);
+			strcat(retc,R.right[i]);
+			erfil = open (retc,O_WRONLY | O_CREAT);
+		}
+		else if (R.left[i][0] == '2' &&  strcmp(R.op[i], ">")==0){
+			if (erfil != -1) {
+				close(erfil);
+			}
+			isDuper = 1;
+			erfil = -1;
+		}
+		else if ( strcmp(R.op[i], "<")==0 ) {
+			if (infil != -1) {
+				close(infil);
+			}
+			char * retc=malloc(MAX_INPUT_SIZE);
+			strcat(retc,R.right[i]);
+			infil = open (retc,O_RDONLY);
+		}
+		else if (strcmp(R.op[i], ">>")==0) {
+			if (outfil != -1) {
+				close(outfil);
+			}
+			isDupout = -1;
+			char * retc=malloc(MAX_INPUT_SIZE);
+			strcat(retc,R.right[i]);
+			outfil = open (retc,O_APPEND | O_CREAT);
+		}
+	}
 
 
-    for (int i = 0; i < n-1; i += 1) {
-    	
-    	char *current = input[i];
-	    char *next = input[i+1];
+    while (i < pipes) {
 
-	    char *cmd1 = extractCommand(current)
-	    char *args1[] = extractArguments(current);
+        int ret = pipe(fd);
+        int pipe_sz = fcntl(fd[1], F_SETPIPE_SZ, 1000000);
+        if (ret == -1) {
+            printf("%s\n", "Cannot create pipe");
+        }
+		if (strcmp(P[i].name,"cd")==0) {
+			chdir(P[i].argu[1]);
+			break;
+		}
+        if ((pid = fork())==0) {
+            if (i > 0) {
+                close(0);
+                dup(prev);
+                close(prev);
+            }
+			else {
+				if (infil !=-1) {
+					close (0);
+					dup(infil);
+					close(infil);
+				}
+			}
+            if (i != pipes-1) {
+                close(1);
+                dup(fd[1]);
+                close(fd[1]);
+            }
+			else{
+				if (outfil != -1) {
+					close (1);
+					dup(outfil);
+					close(outfil);
+				}
+				else if(isDupout != -1){
+					close (1);
+					dup(2);
+					dup(2);
+				}
+				if (erfil != -1) {
+					close(2);
+					dup(erfil);
+					close(erfil);
+				}
+				else if(isDuper != -1){
+					close (2);
+					dup(1);
+					dup(1);
+				}
+			}
+            close(fd[0]);
+            // printf("Inside %s\n", P[i].name);
+            // printf("At 0 : %s\n", P[0].name);
+            execvp(P[i].name, P[i].argu);
+            printf("%s\n","Could not exec" );
+            exit(1);
 
-	    char *cmd2 = extractCommand(next)
-	    char *args2[] = extractArguments(next);
 
-	    int fd[2];
-
-	    pipe(fd);
-
-	    // Child Process
-	    if ((pid = fork())==0) {
-	    	close(1);
-	    	dup(fd[1]);
-	    	close(fd[0]);
-	    	close(fd[1]);
-	        execv(cmd1,args1);
-	    }
-	    // Parent Process
-	    else if(pid > 0){
-	    	close(0);
-	    	dup(fd[0]);
-	    	close (fd[0]);
- 			close (fd[1]);
-	        wait(&status);
-	    }
-	    // Error, fork not successfull
-	    else{
-	        printf("Error, fork and exec not successfull\n");
-	        exit(-1);
-	    }
+        }
+        else if(pid > 0){
+            wait(NULL);
+            close(fd[1]);
+            prev = fd[0];
+            i++;
+        }
+        else{
+            printf("%s\n", "Could not fork");
+            exit(1);
+        }
     }
-
-    
 
 }
 
 
 int main (int argc, char const *argv[]) {
     char * cmd;
- //    while(1) {
-	// 	printf("$ ");
-	// 	cmd = input ();
- //        // printf("%s\n", cmd);
- //        if (strcmp(cmd,"exit")==0) {
- //            exit(0);
- //        }
- //        else {
- //            char param[MAX_INPUT_SIZE], params[MAX_INPUT_SIZE];
- //            strcpy(param,cmd);
- //            char * command = extractCommand(param);
- //            // printf("%s\n", command );
- //            strcpy(params,cmd);
- //            char * arr[20];
- //            int num = extractArguments(params,arr);
- //            // printf("%d\n", num );
- //            // char * attributes = extractAttributes(params);
- //            // printf("%s\n", attributes );
- //            //char * array[2];
- //            //splitPipe (cmd,array);
- //            //printf("%s\n", array[0]);
- //            //char * r = removespaces(array[0]);
- //            char * filePath = returnFile(command);
- //            // printf("%s\n", filePath);
- //            if (strcmp(filePath,"Not Found")!=0) {
- //                if (num == 1) {
- //                    execute(filePath, num, NULL);
- //                }
- //                else{
- //                    execute(filePath, num, arr);
- //                }
- //            }
- //            else{
- //                printf("%s\n", filePath );
- //            }
- //            for (int i = 0; i < num; i++) {
- //                free(arr[i]);
- //            }
- //            free(filePath);
- //        }
- //        free(cmd);
-	// }
+    char cwd[200];
+    //printf("\033[H\033[J");
+    // printf("\e[1;1H\e[2J");
+    while(1) {
+		signal(SIGINT, Handler);
+        getcwd(cwd, 200);
+		printf(ANSI_COLOR_GREEN "%s$ " ANSI_COLOR_RESET, cwd);
+		cmd = input ();
+        // printf("%s\n", cmd);
+		if (strlen(cmd) == 0) {
+			continue;
+		}
+        if (strcmp(cmd,"exit") == 0) {
+            exit(0);
+        }
+        else {
 
-	while(1){
+            char arr[MAX_INPUT_SIZE][MAX_INPUT_SIZE];
+            char param[MAX_INPUT_SIZE];
+            strcpy(param,cmd);
 
-	    cmd = input ();
+            int splitLen = splitPipe2(param, arr)-1;
+            // printf("%d\n",splitLen );
 
-	    int inputSize = sizeof(cmd)/sizeof(char);
 
-	    int splitLen = splitPipe(cmd);
+            struct Process P[splitLen+1];
+            for(int k=0; k<splitLen-1; k+=1){
 
-	    executePipe(cmd, splitLen);
+    	    	char current[MAX_INPUT_SIZE];
+        		strcpy(current, arr[k]);
+
+    	    	// P[k].name = extractCommand(current);
+
+    	    	// strcpy(current, Commands[k]);
+
+
+    	    	//P[k].argu = args;
+    	    	char * args[20];
+
+    	    	int argLen = extractArguments(current, args);
+
+    	    	P[k].name = args[0];
+
+    	    	for (int l = 0; l < argLen+1; ++l) {
+    	    		P[k].argu[l] = args[l];
+    	    	}
+
+    	    	P[k].len = argLen;
+
+    	    }
+			char current[MAX_INPUT_SIZE];
+			struct Redirect R;
+			char * arraycaucb[10];
+			char * comd = redirection(arr[splitLen-1], &R, arraycaucb );
+			strcpy(current, comd );
+			// printf("%s\n",  current);
+			char * args[20];
+			int argLen = extractArguments(current, args);
+
+			P[splitLen-1].name = args[0];
+
+			for (int l = 0; l < argLen+1; ++l) {
+				P[splitLen -1].argu[l] = args[l];
+			}
+
+			P[splitLen -1].len = argLen;
+
+			// printf(" print %d\n", R.len);
+			// for (int i = 0; i <R.len ; i++) {
+			// 	printf("%s %s %s \n", R.left[i], R.op[i], R.right[i] );
+			// }
+            // printf("%s\n", "Printing names in struct");
+			//
+            // for(int i=0; i<splitLen; i+=1){
+            //     printf("%s\n", P[i].name);
+            // }
+
+            // printf("%s\n", cmd);
+			// printf("Just %d\n", R.len);
+            // printf("Pipe %d\n", splitLen);
+            executePipes(splitLen,P, R);
+
+        }
+        free(cmd);
 	}
-
-
 }
