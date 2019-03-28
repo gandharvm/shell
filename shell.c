@@ -7,6 +7,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <signal.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -15,13 +16,16 @@
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
+int BGRND; // To check if & is present in command
 
+// For each process separated by pipes and stores the computed arguments
 struct Process {
 	char *name;
 	char *argu[20];
 	int len;
 };
 
+// To store information of the redirections 
 struct Redirect
 {
     char left[MAX_INPUT_SIZE][20];
@@ -49,12 +53,12 @@ char * input (void) {
     return line;
 }
 
+// Function to split the input array according to pipes and store it in Commands array and return its size
 int splitPipe2 (char * command, char Commands[][MAX_INPUT_SIZE]) {
 
-    //char *var2 = strdup(command);
     int i = 0; char *p;
 
-    while ((p = strsep(&command,"|")) != NULL) {   // p contains the token
+    while ((p = strsep(&command,"|")) != NULL) {
         strcpy(Commands[i], p);
         i += 1;
     }
@@ -62,82 +66,22 @@ int splitPipe2 (char * command, char Commands[][MAX_INPUT_SIZE]) {
     // Length of the newly formed array
     int n = i+1;
 
-    // Not splitting the first element properly
-    // for (int i = 0; i < n; ++i)
-    // {
-    //  printf("%s \n", Commands[i]);
-    // }
-
     return n;
 }
 
-
-char * extractCommand( char string[] ) {
-    int flag=0;
-    char * s = string;
-    int count = 0;
-    while (*string != 0 ) {
-        *s = *string++;
-        if (*s != ' '){
-            s++;
-            count++;
-            flag = 1;
-        }
-        else if(*s == ' ' && flag == 1){
-            break;
-        }
-    }
-    *s = '\0';
-    s-=count;
-    // printf("%s\n", s);
-    return s;
-}
-
-// char * inputRedirection(char * command){
-// 	char * newCommand = command;
-// 	int len = 0, count = 0;
-// 	char cmd [MAX_INPUT_SIZE];
-// 	while (*command == ' ')
-// 	{
-// 		command++;
-// 	}
-// 	strcpy(cmd, command);
-// 	for (int i = 0; i < strlen(cmd); i++) {
-// 		if (cmd[i] == '<') {
-// 			if (i > 1)
-//             {
-//                 if (cmd[i-1] == '0' && cmd[i-2] == ' ')
-//                 {
-//
-//                 }
-//                 else
-//                 {
-//
-//                 }
-//                 j++;
-//             }
-// 			else{
-// 				printf("%s\n","Invalid" );
-// 			}
-// 		}
-// 	}
-//
-// }
-
+// To populate the Redirection structure and store the information into redirection arrays
 char * redirection( char * command , struct Redirect *R, char *args[]) {
+
     char cmd [MAX_INPUT_SIZE];
     int j = 0;
-    //Initialising the arrays of the Process
-    // for (int i = 0; i < 20; ++i) {
-    //     R.left[i] = "00";
-    //     R.right[i] = "00";
-    //     R.op[i] = "00";
-    // }
+
     while (*command == ' ')
     {
         command++;
     }
+
     strcpy(cmd, command);
+    
     for (int i = 0; i < strlen(cmd); ++i)
     {
         if (cmd[i] == '<')
@@ -177,9 +121,7 @@ char * redirection( char * command , struct Redirect *R, char *args[]) {
 			if (flag == 1) {
 				R->right[j][l] = '\0';
 			}
-			// printf("%ld\n", strlen (cmd));
-			// strncpy(R->right[j], cmd + i, index);
-			// printf("%s\n", R->right[j]);
+			
 			j++;
 			cmd[i] = ' ';
         }
@@ -248,9 +190,7 @@ char * redirection( char * command , struct Redirect *R, char *args[]) {
 					if (flag == 1) {
 						R->right[j][l] = '\0';
 					}
-					// printf("%ld\n", strlen (cmd));
-					// strncpy(R->right[j], cmd + i, index);
-					// printf("%s\n", R->right[j]);
+					
                 }
 
 
@@ -325,9 +265,7 @@ char * redirection( char * command , struct Redirect *R, char *args[]) {
 					if (flag == 1) {
 						R->right[j][l] = '\0';
 					}
-					// printf("%ld\n", strlen (cmd));
-					// strncpy(R->right[j], cmd + i, index);
-					// printf("%s\n", R->right[j]);
+			
                 }
 
             }
@@ -344,6 +282,8 @@ char * redirection( char * command , struct Redirect *R, char *args[]) {
 	return retc;
 }
 
+
+// Function to extraxt the arguement for each process separated by pipes in Array arr
 int extractArguments( char string[], char *arr[]) {
     int flag=0,j=0;
     arr[0]=malloc(20);
@@ -382,7 +322,7 @@ int extractArguments( char string[], char *arr[]) {
     return j;
 }
 
-// Signal handler
+// Signal handler for SIGINT (Ctrl+C)
 void Handler(int sig){
 
     printf("\n");
@@ -397,6 +337,9 @@ void Handler(int sig){
 
 }
 
+
+
+// Main Execution function that calls exec sys call and handles all the piping and redirections
 void executePipes(int pipes , struct Process P[], struct Redirect R) {
     int prev = 0, i = 0;
     int infil = -1;
@@ -426,14 +369,14 @@ void executePipes(int pipes , struct Process P[], struct Redirect R) {
 			isDupout=-1;
 			char * retc=malloc(MAX_INPUT_SIZE);
 			strcat(retc,R.right[i]);
-			printf(" lnk%s\n",retc );
-			outfil = open (retc,O_WRONLY | O_CREAT);
+			// printf(" lnk%s\n",retc );
+			outfil = open (retc,O_WRONLY | O_CREAT, 0777);
 		}
 		else if (R.left[i][0] == '1' &&  strcmp(R.op[i], ">")==0){
 			if (outfil != -1) {
 				close(outfil);
 			}
-			printf("%s\n", "outpuy" );
+			// printf("%s\n", "outpuy" );
 			isDupout = 1;
 			outfil = -1;
 		}
@@ -444,7 +387,7 @@ void executePipes(int pipes , struct Process P[], struct Redirect R) {
 			isDuper = -1;
 			char * retc=malloc(MAX_INPUT_SIZE);
 			strcat(retc,R.right[i]);
-			erfil = open (retc,O_WRONLY | O_CREAT);
+			erfil = open (retc,O_WRONLY | O_CREAT, 0777);
 		}
 		else if (R.left[i][0] == '2' &&  strcmp(R.op[i], ">")==0){
 			if (erfil != -1) {
@@ -459,7 +402,7 @@ void executePipes(int pipes , struct Process P[], struct Redirect R) {
 			}
 			char * retc=malloc(MAX_INPUT_SIZE);
 			strcat(retc,R.right[i]);
-			infil = open (retc,O_RDONLY);
+			infil = open (retc,O_RDONLY | O_CREAT, 0777);
 		}
 		else if (strcmp(R.op[i], ">>")==0) {
 			if (outfil != -1) {
@@ -468,7 +411,8 @@ void executePipes(int pipes , struct Process P[], struct Redirect R) {
 			isDupout = -1;
 			char * retc=malloc(MAX_INPUT_SIZE);
 			strcat(retc,R.right[i]);
-			outfil = open (retc,O_APPEND | O_CREAT);
+			//printf("%s\n",retc);
+			outfil = open (retc, O_APPEND | O_CREAT | O_RDWR, 0777);
 		}
 	}
 
@@ -504,6 +448,7 @@ void executePipes(int pipes , struct Process P[], struct Redirect R) {
             }
 			else{
 				if (outfil != -1) {
+					// printf("%d\n",outfil );
 					close (1);
 					dup(outfil);
 					close(outfil);
@@ -534,7 +479,10 @@ void executePipes(int pipes , struct Process P[], struct Redirect R) {
 
         }
         else if(pid > 0){
-            wait(NULL);
+			if(BGRND == 0){
+			   waitpid(pid, NULL, 0);
+		   }
+		  // wait(NULL);
             close(fd[1]);
             prev = fd[0];
             i++;
@@ -548,23 +496,29 @@ void executePipes(int pipes , struct Process P[], struct Redirect R) {
 }
 
 
+// Need I say anything here?
 int main (int argc, char const *argv[]) {
+
     char * cmd;
     char cwd[200];
-    //printf("\033[H\033[J");
-    // printf("\e[1;1H\e[2J");
+
     while(1) {
 		signal(SIGINT, Handler);
+
+		BGRND = 0;
         getcwd(cwd, 200);
 		printf(ANSI_COLOR_GREEN "%s$ " ANSI_COLOR_RESET, cwd);
 		cmd = input ();
         // printf("%s\n", cmd);
-		if (strlen(cmd) == 0) {
+		
+        if (strlen(cmd) == 0) {
 			continue;
 		}
+        
         if (strcmp(cmd,"exit") == 0) {
             exit(0);
-        }
+        } 
+
         else {
 
             char arr[MAX_INPUT_SIZE][MAX_INPUT_SIZE];
@@ -600,6 +554,7 @@ int main (int argc, char const *argv[]) {
     	    	P[k].len = argLen;
 
     	    }
+
 			char current[MAX_INPUT_SIZE];
 			struct Redirect R;
 			char * arraycaucb[10];
@@ -610,6 +565,16 @@ int main (int argc, char const *argv[]) {
 			int argLen = extractArguments(current, args);
 
 			P[splitLen-1].name = args[0];
+			// Check if the name ends with &
+		    int length = strlen(P[splitLen-1].name);
+
+		    // printf("Lenght %d\n", length);
+
+		    if(P[splitLen-1].name[length-1] == '&'){
+			   BGRND = 1;
+			   P[splitLen-1].name[length-1] = '\0';
+		    }
+
 
 			for (int l = 0; l < argLen+1; ++l) {
 				P[splitLen -1].argu[l] = args[l];
@@ -633,6 +598,7 @@ int main (int argc, char const *argv[]) {
             executePipes(splitLen,P, R);
 
         }
+
         free(cmd);
 	}
 }
